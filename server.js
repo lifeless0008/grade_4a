@@ -1,4 +1,3 @@
-// server.js
 const express = require('express');
 const cors = require('cors');
 const { Pool } = require('pg');
@@ -6,44 +5,39 @@ const { Pool } = require('pg');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Middleware
 app.use(cors());
 app.use(express.json());
 
-// Database connection
 const pool = new Pool({
-  connectionString: process.env.DATABASE_URL || 'postgresql://localhost:5432/grade_api',
+  connectionString: process.env.DATABASE_URL,
   ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false
 });
 
-// Test database connection
 pool.query('SELECT NOW()', (err, res) => {
   if (err) {
-    console.error('Database connection error:', err);
+    console.error('❌ Database connection error:', err);
   } else {
-    console.log('Database connected successfully');
+    console.log('✅ Database connected successfully');
   }
 });
 
-
-// Get all grades
 app.get('/api/grades', async (req, res) => {
   try {
-    const { student_id, course_subject_id } = req.query;
-    let query = 'SELECT * FROM tbl_grades_subject_grade';
+    const { student_id, course_subject_id, enrollment_id } = req.query;
+    let query = 'SELECT * FROM tbl_grades_subject_grade WHERE 1=1';
     const params = [];
     
-    if (student_id || course_subject_id) {
-      query += ' WHERE';
-      if (student_id) {
-        params.push(student_id);
-        query += ` student_id = $${params.length}`;
-      }
-      if (course_subject_id) {
-        if (params.length > 0) query += ' AND';
-        params.push(course_subject_id);
-        query += ` course_subject_id = $${params.length}`;
-      }
+    if (student_id) {
+      params.push(student_id);
+      query += ` AND student_id = $${params.length}`;
+    }
+    if (course_subject_id) {
+      params.push(course_subject_id);
+      query += ` AND course_subject_id = $${params.length}`;
+    }
+    if (enrollment_id) {
+      params.push(enrollment_id);
+      query += ` AND enrollment_id = $${params.length}`;
     }
     
     query += ' ORDER BY created_at DESC';
@@ -64,7 +58,6 @@ app.get('/api/grades', async (req, res) => {
   }
 });
 
-// Get single grade by ID
 app.get('/api/grades/:id', async (req, res) => {
   try {
     const { id } = req.params;
@@ -94,7 +87,6 @@ app.get('/api/grades/:id', async (req, res) => {
   }
 });
 
-// Create new grade
 app.post('/api/grades', async (req, res) => {
   try {
     const {
@@ -107,6 +99,13 @@ app.post('/api/grades', async (req, res) => {
       remarks,
       finalized_by
     } = req.body;
+
+    if (!student_id || !enrollment_id || !course_subject_id) {
+      return res.status(400).json({
+        success: false,
+        message: 'Missing required fields: student_id, enrollment_id, course_subject_id'
+      });
+    }
     
     const result = await pool.query(
       `INSERT INTO tbl_grades_subject_grade 
@@ -133,7 +132,6 @@ app.post('/api/grades', async (req, res) => {
   }
 });
 
-// Update grade
 app.put('/api/grades/:id', async (req, res) => {
   try {
     const { id } = req.params;
@@ -188,7 +186,6 @@ app.put('/api/grades/:id', async (req, res) => {
   }
 });
 
-// Delete grade
 app.delete('/api/grades/:id', async (req, res) => {
   try {
     const { id } = req.params;
@@ -206,7 +203,8 @@ app.delete('/api/grades/:id', async (req, res) => {
     
     res.json({
       success: true,
-      message: 'Grade deleted successfully'
+      message: 'Grade deleted successfully',
+      deleted_id: parseInt(id)
     });
   } catch (error) {
     console.error('Error deleting grade:', error);
@@ -218,24 +216,23 @@ app.delete('/api/grades/:id', async (req, res) => {
   }
 });
 
-// Get all grade inputs
-app.get('/api/grade-inputs', async (req, res) => {
+app.get('/api/grade_inputs', async (req, res) => {
   try {
-    const { subject_grade_id, term } = req.query;
-    let query = 'SELECT * FROM tbl_grade_grade_input';
+    const { subject_grade_id, term, input_type } = req.query;
+    let query = 'SELECT * FROM tbl_grade_grade_input WHERE 1=1';
     const params = [];
     
-    if (subject_grade_id || term) {
-      query += ' WHERE';
-      if (subject_grade_id) {
-        params.push(subject_grade_id);
-        query += ` subject_grade_id = $${params.length}`;
-      }
-      if (term) {
-        if (params.length > 0) query += ' AND';
-        params.push(term);
-        query += ` term = $${params.length}`;
-      }
+    if (subject_grade_id) {
+      params.push(subject_grade_id);
+      query += ` AND subject_grade_id = $${params.length}`;
+    }
+    if (term) {
+      params.push(term);
+      query += ` AND term = $${params.length}`;
+    }
+    if (input_type) {
+      params.push(input_type);
+      query += ` AND input_type = $${params.length}`;
     }
     
     query += ' ORDER BY created_at DESC';
@@ -256,8 +253,7 @@ app.get('/api/grade-inputs', async (req, res) => {
   }
 });
 
-// Get single grade input
-app.get('/api/grade-inputs/:id', async (req, res) => {
+app.get('/api/grade_inputs/:id', async (req, res) => {
   try {
     const { id } = req.params;
     const result = await pool.query(
@@ -286,8 +282,7 @@ app.get('/api/grade-inputs/:id', async (req, res) => {
   }
 });
 
-// Create grade input
-app.post('/api/grade-inputs', async (req, res) => {
+app.post('/api/grade_inputs', async (req, res) => {
   try {
     const {
       subject_grade_id,
@@ -297,6 +292,29 @@ app.post('/api/grade-inputs', async (req, res) => {
       term,
       created_by
     } = req.body;
+
+    if (!subject_grade_id || !input_type || !input_name || score === undefined || !term) {
+      return res.status(400).json({
+        success: false,
+        message: 'Missing required fields: subject_grade_id, input_type, input_name, score, term'
+      });
+    }
+
+    const validInputTypes = ['quiz', 'exam', 'assignment', 'project', 'recitation', 'attendance'];
+    if (!validInputTypes.includes(input_type)) {
+      return res.status(400).json({
+        success: false,
+        message: `Invalid input_type. Must be one of: ${validInputTypes.join(', ')}`
+      });
+    }
+
+    const validTerms = ['midterms', 'finals'];
+    if (!validTerms.includes(term)) {
+      return res.status(400).json({
+        success: false,
+        message: `Invalid term. Must be either 'midterms' or 'finals'`
+      });
+    }
     
     const result = await pool.query(
       `INSERT INTO tbl_grade_grade_input 
@@ -321,11 +339,31 @@ app.post('/api/grade-inputs', async (req, res) => {
   }
 });
 
-// Update grade input
-app.put('/api/grade-inputs/:id', async (req, res) => {
+
+app.put('/api/grade_inputs/:id', async (req, res) => {
   try {
     const { id } = req.params;
     const { input_type, input_name, score, term } = req.body;
+
+    if (input_type) {
+      const validInputTypes = ['quiz', 'exam', 'assignment', 'project', 'recitation', 'attendance'];
+      if (!validInputTypes.includes(input_type)) {
+        return res.status(400).json({
+          success: false,
+          message: `Invalid input_type. Must be one of: ${validInputTypes.join(', ')}`
+        });
+      }
+    }
+
+    if (term) {
+      const validTerms = ['midterms', 'finals'];
+      if (!validTerms.includes(term)) {
+        return res.status(400).json({
+          success: false,
+          message: `Invalid term. Must be either 'midterms' or 'finals'`
+        });
+      }
+    }
     
     const result = await pool.query(
       `UPDATE tbl_grade_grade_input 
@@ -361,8 +399,7 @@ app.put('/api/grade-inputs/:id', async (req, res) => {
   }
 });
 
-// Delete grade input
-app.delete('/api/grade-inputs/:id', async (req, res) => {
+app.delete('/api/grade_inputs/:id', async (req, res) => {
   try {
     const { id } = req.params;
     const result = await pool.query(
@@ -379,7 +416,8 @@ app.delete('/api/grade-inputs/:id', async (req, res) => {
     
     res.json({
       success: true,
-      message: 'Grade input deleted successfully'
+      message: 'Grade input deleted successfully',
+      deleted_id: parseInt(id)
     });
   } catch (error) {
     console.error('Error deleting grade input:', error);
@@ -391,14 +429,13 @@ app.delete('/api/grade-inputs/:id', async (req, res) => {
   }
 });
 
-// Get grade statistics
 app.get('/api/grades/stats/:student_id', async (req, res) => {
   try {
     const { student_id } = req.params;
     const result = await pool.query(
       `SELECT 
          COUNT(*) as total_subjects,
-         AVG(subject_grade) as average_grade,
+         ROUND(AVG(subject_grade)::numeric, 2) as average_grade,
          MAX(subject_grade) as highest_grade,
          MIN(subject_grade) as lowest_grade,
          COUNT(CASE WHEN remarks = 'Passed' THEN 1 END) as passed_count,
@@ -410,6 +447,7 @@ app.get('/api/grades/stats/:student_id', async (req, res) => {
     
     res.json({
       success: true,
+      student_id: parseInt(student_id),
       data: result.rows[0]
     });
   } catch (error) {
@@ -422,43 +460,135 @@ app.get('/api/grades/stats/:student_id', async (req, res) => {
   }
 });
 
-// Root endpoint
+app.get('/api/grade_inputs/summary/:subject_grade_id', async (req, res) => {
+  try {
+    const { subject_grade_id } = req.params;
+    const result = await pool.query(
+      `SELECT 
+         term,
+         COUNT(*) as total_inputs,
+         ROUND(AVG(score)::numeric, 2) as average_score,
+         MAX(score) as highest_score,
+         MIN(score) as lowest_score
+       FROM tbl_grade_grade_input
+       WHERE subject_grade_id = $1
+       GROUP BY term
+       ORDER BY term`,
+      [subject_grade_id]
+    );
+    
+    res.json({
+      success: true,
+      subject_grade_id: parseInt(subject_grade_id),
+      data: result.rows
+    });
+  } catch (error) {
+    console.error('Error fetching input summary:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching input summary',
+      error: error.message
+    });
+  }
+});
+
 app.get('/', (req, res) => {
   res.json({
-    message: 'Grade API Service',
+    message: 'Grade API Service - Group 3',
     version: '1.0.0',
-    endpoints: {
+    status: 'operational',
+    documentation: {
       grades: {
-        getAll: 'GET /api/grades',
-        getOne: 'GET /api/grades/:id',
+        get_all: 'GET /api/grades (optional: ?student_id=1&course_subject_id=1&enrollment_id=1)',
+        get_one: 'GET /api/grades/:id',
         create: 'POST /api/grades',
         update: 'PUT /api/grades/:id',
         delete: 'DELETE /api/grades/:id',
         stats: 'GET /api/grades/stats/:student_id'
       },
-      gradeInputs: {
-        getAll: 'GET /api/grade-inputs',
-        getOne: 'GET /api/grade-inputs/:id',
-        create: 'POST /api/grade-inputs',
-        update: 'PUT /api/grade-inputs/:id',
-        delete: 'DELETE /api/grade-inputs/:id'
+      grade_inputs: {
+        get_all: 'GET /api/grade_inputs (optional: ?subject_grade_id=1&term=midterms&input_type=quiz)',
+        get_one: 'GET /api/grade_inputs/:id',
+        create: 'POST /api/grade_inputs',
+        update: 'PUT /api/grade_inputs/:id',
+        delete: 'DELETE /api/grade_inputs/:id',
+        summary: 'GET /api/grade_inputs/summary/:subject_grade_id'
+      },
+      system: {
+        health: 'GET /health',
+        docs: 'GET /'
+      }
+    },
+    sample_requests: {
+      create_grade: {
+        url: 'POST /api/grades',
+        body: {
+          student_id: 1,
+          enrollment_id: 101,
+          course_subject_id: 1,
+          midterm_grade: 88.5,
+          finals_grade: 90.0,
+          subject_grade: 89.25,
+          remarks: 'Passed',
+          finalized_by: 1
+        }
+      },
+      create_input: {
+        url: 'POST /api/grade_inputs',
+        body: {
+          subject_grade_id: 1,
+          input_type: 'quiz',
+          input_name: 'Quiz 3',
+          score: 48.5,
+          term: 'finals',
+          created_by: 1
+        }
       }
     }
   });
 });
 
-// Health check
-app.get('/health', (req, res) => {
-  res.json({ status: 'OK', timestamp: new Date().toISOString() });
+app.get('/health', async (req, res) => {
+  try {
+    await pool.query('SELECT 1');
+    res.json({
+      status: 'OK',
+      database: 'connected',
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    res.status(503).json({
+      status: 'ERROR',
+      database: 'disconnected',
+      timestamp: new Date().toISOString(),
+      error: error.message
+    });
+  }
 });
 
-// Start server
+app.use((req, res) => {
+  res.status(404).json({
+    success: false,
+    message: 'Endpoint not found',
+    requested_url: req.originalUrl,
+    method: req.method
+  });
+});
+
+app.use((err, req, res, next) => {
+  console.error('Unhandled error:', err);
+  res.status(500).json({
+    success: false,
+    message: 'Internal server error',
+    error: process.env.NODE_ENV === 'development' ? err.message : 'An error occurred'
+  });
+});
+
 app.listen(PORT, () => {
   console.log(`🚀 Grade API Server running on port ${PORT}`);
   console.log(`📡 Health check: http://localhost:${PORT}/health`);
   console.log(`📚 API Documentation: http://localhost:${PORT}/`);
+  console.log(`🔧 Environment: ${process.env.NODE_ENV || 'development'}`);
 });
 
 module.exports = app;
-
-
