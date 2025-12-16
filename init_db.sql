@@ -1,4 +1,3 @@
--- Create tbl_grades_subject_grade table
 CREATE TABLE IF NOT EXISTS tbl_grades_subject_grade (
     subject_grade_id SERIAL PRIMARY KEY,
     student_id INTEGER NOT NULL,
@@ -14,7 +13,6 @@ CREATE TABLE IF NOT EXISTS tbl_grades_subject_grade (
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- Create tbl_grade_grade_input table
 CREATE TABLE IF NOT EXISTS tbl_grade_grade_input (
     grade_input_id SERIAL PRIMARY KEY,
     subject_grade_id INTEGER NOT NULL REFERENCES tbl_grades_subject_grade(subject_grade_id) ON DELETE CASCADE,
@@ -27,13 +25,11 @@ CREATE TABLE IF NOT EXISTS tbl_grade_grade_input (
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
--- Create indexes for better performance
 CREATE INDEX idx_grades_student ON tbl_grades_subject_grade(student_id);
 CREATE INDEX idx_grades_course ON tbl_grades_subject_grade(course_subject_id);
 CREATE INDEX idx_grade_inputs_subject ON tbl_grade_grade_input(subject_grade_id);
 CREATE INDEX idx_grade_inputs_term ON tbl_grade_grade_input(term);
 
--- Insert sample data
 INSERT INTO tbl_grades_subject_grade 
 (student_id, enrollment_id, course_subject_id, midterm_grade, finals_grade, subject_grade, remarks, finalized_by, finalized_at)
 VALUES 
@@ -49,6 +45,3 @@ VALUES
 (1, 'quiz', 'Quiz 2', 48.0, 'finals', 1),
 (2, 'quiz', 'Quiz 1', 50.0, 'midterms', 1),
 (2, 'assignment', 'Programming Assignment 1', 95.0, 'midterms', 1);
-
--- Success message
-SELECT 'Database initialized successfully!' as message;
